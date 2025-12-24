@@ -13,7 +13,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 // Demo account: admin / admin123
 const DEMO_USER = "admin";
-const DEMO_PASS = "admin123";
+const DEMO_PASS = "123456";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
