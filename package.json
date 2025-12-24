@@ -1,0 +1,8 @@
+{
+  "name": "water-monitoring-fullstack",
+  "private": true,
+  "scripts": {
+    "build": "cd frontend/water-monitoring-frontend && npm install && npm run build && cd ../../backend && npm install && npm run build",
+    "start": "cd backend && npm start"
+  }
+}
