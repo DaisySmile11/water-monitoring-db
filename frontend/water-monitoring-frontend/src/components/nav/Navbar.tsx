@@ -1,5 +1,7 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import favicon from "../../assets/favicon.png";
+
 
 function NavItem({ to, label }: { to: string; label: string }) {
   return (
@@ -31,7 +33,11 @@ export default function Navbar() {
       <div className="mx-auto max-w-6xl px-4 py-4 flex items-center justify-between gap-3">
         <Link to="/" className="flex items-center gap-3 text-white">
           <div className="h-10 w-10 rounded-2xl bg-white/20 flex items-center justify-center">
-            <span className="text-xl">🌊</span>
+            <img
+              src={favicon}
+              alt="Salinity Icon"
+              className="h-7 w-7"
+            />
           </div>
           <div className="leading-tight">
             <div className="text-lg font-extrabold tracking-tight">Water Monitoring</div>
