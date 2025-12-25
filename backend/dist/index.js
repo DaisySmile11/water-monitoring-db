@@ -8,16 +8,21 @@ const cors_1 = __importDefault(require("cors"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const path_1 = __importDefault(require("path"));
 const readings_1 = __importDefault(require("./routes/readings"));
+const alerts_1 = __importDefault(require("./routes/alerts"));
+const schema_1 = require("./schema");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 app.use((0, cors_1.default)());
 app.use(express_1.default.json());
+// Bootstrap DB schema for alerting features (best-effort)
+(0, schema_1.ensureSchema)().catch((e) => console.error("Failed to ensure schema", e));
 // Healthcheck
 app.get("/health", (req, res) => {
     res.json({ status: "ok", service: "water-monitoring-backend" });
 });
 // API routes
 app.use("/api/readings", readings_1.default);
+app.use("/api/alerts", alerts_1.default);
 // Serve React build (single URL deployment)
 const FRONTEND_DIST = path_1.default.join(__dirname, "../../frontend/water-monitoring-frontend/dist");
 app.use(express_1.default.static(FRONTEND_DIST));

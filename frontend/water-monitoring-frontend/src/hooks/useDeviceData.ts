@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Device, LatestReading } from "../types/device";
 import { fetchLatestReading, fetchRecentReadings } from "../services/thingspeak";
+import { evaluateReading } from "../services/backend";
 
 export function useDeviceData(device: Device | null) {
   const [latest, setLatest] = useState<LatestReading | null>(null);
@@ -25,6 +26,20 @@ export function useDeviceData(device: Device | null) {
         if (!alive) return;
         if (l) setLatest(l);
         setSeries(s);
+
+        // Trigger backend alert evaluation (best-effort)
+        if (l) {
+          evaluateReading({
+            device_id: device.id,
+            createdAt: l.createdAt,
+            salinity: l.salinity,
+            ph: l.ph,
+            temperature: l.temperature,
+            battery: l.battery
+          }).catch(() => {
+            // Ignore errors (demo-friendly)
+          });
+        }
       } finally {
         if (alive) setLoading(false);
       }

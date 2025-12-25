@@ -3,12 +3,17 @@ import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
 import readingsRouter from "./routes/readings";
+import alertsRouter from "./routes/alerts";
+import { ensureSchema } from "./schema";
 
 dotenv.config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Bootstrap DB schema for alerting features (best-effort)
+ensureSchema().catch((e) => console.error("Failed to ensure schema", e));
 
 // Healthcheck
 app.get("/health", (req, res) => {
@@ -17,6 +22,7 @@ app.get("/health", (req, res) => {
 
 // API routes
 app.use("/api/readings", readingsRouter);
+app.use("/api/alerts", alertsRouter);
 
 // Serve React build (single URL deployment)
 const FRONTEND_DIST = path.join(__dirname, "../../frontend/water-monitoring-frontend/dist");

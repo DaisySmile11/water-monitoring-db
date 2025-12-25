@@ -1,11 +1,17 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Card from "../components/ui/Card";
 import SectionTitle from "../components/ui/SectionTitle";
 import { useDevices } from "../context/DevicesContext";
 import { Device } from "../types/device";
+import { fetchAlertSettings, saveAlertSettings, AlertSettings } from "../services/backend";
 
 export default function AdminPage() {
   const { devices, addDevice, removeDevice } = useDevices();
+
+  // --- Alert Settings ---
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>(devices[0]?.id || "");
+  const [settings, setSettings] = useState<AlertSettings | null>(null);
+  const [settingsStatus, setSettingsStatus] = useState<"idle" | "loading" | "saving" | "saved" | "error">("idle");
 
   const [form, setForm] = useState({
     id: "",
@@ -31,6 +37,23 @@ export default function AdminPage() {
 
   const onChange = (k: string, v: string) => setForm((s) => ({ ...s, [k]: v }));
 
+  useEffect(() => {
+    if (!selectedDeviceId) return;
+    setSettingsStatus("loading");
+    fetchAlertSettings(selectedDeviceId)
+      .then((s) => {
+        setSettings(s);
+        setSettingsStatus("idle");
+      })
+      .catch(() => setSettingsStatus("error"));
+  }, [selectedDeviceId]);
+
+  // Keep selected device stable if list changes
+  useEffect(() => {
+    if (!selectedDeviceId && devices[0]?.id) setSelectedDeviceId(devices[0].id);
+  }, [devices.length]);
+
+
   const onAdd = (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
@@ -50,6 +73,9 @@ export default function AdminPage() {
     };
 
     addDevice(d);
+
+    // Auto-select new device for alert settings
+    setSelectedDeviceId(d.id);
 
     setForm({
       id: "",
@@ -149,6 +175,170 @@ export default function AdminPage() {
       </Card>
 
       <Card className="p-6">
+        <div className="text-lg font-extrabold text-brand-800">Alert Settings & Email Notifications</div>
+        <div className="mt-2 text-sm text-slate-600">
+          Configure threshold-based alerts. When new readings are fetched, the frontend calls the backend to evaluate rules, store alerts, and optionally send emails.
+        </div>
+
+        {devices.length === 0 ? (
+          <div className="mt-4 text-sm text-slate-500">Add at least 1 device first.</div>
+        ) : (
+          <div className="mt-5 space-y-4">
+            <div>
+              <label className="text-sm font-semibold text-slate-600">Select Device</label>
+              <select
+                value={selectedDeviceId}
+                onChange={(e) => setSelectedDeviceId(e.target.value)}
+                className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-brand-400"
+              >
+                {devices.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name} ({d.id})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-semibold text-slate-600">Email recipients</label>
+                <input
+                  value={settings?.email_to || ""}
+                  onChange={(e) => setSettings((s) => (s ? { ...s, email_to: e.target.value } : s))}
+                  className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                  placeholder="vd: daisy@gmail.com, ops@company.com"
+                />
+                <div className="mt-1 text-xs text-slate-500">Comma-separated emails. (SMTP must be configured in backend env.)</div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-semibold text-slate-600">Cooldown (minutes)</label>
+                  <input
+                    value={String(settings?.cooldown_minutes ?? 15)}
+                    onChange={(e) => setSettings((s) => (s ? { ...s, cooldown_minutes: Number(e.target.value || 0) } : s))}
+                    className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                    placeholder="15"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-slate-600">No data (minutes)</label>
+                  <input
+                    value={String(settings?.no_data_minutes ?? 60)}
+                    onChange={(e) => setSettings((s) => (s ? { ...s, no_data_minutes: Number(e.target.value || 0) } : s))}
+                    className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                    placeholder="60"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-semibold text-slate-600">Salinity high (ppt)</label>
+                  <input
+                    value={String(settings?.salinity_high ?? "")}
+                    onChange={(e) => setSettings((s) => (s ? { ...s, salinity_high: e.target.value === "" ? null : Number(e.target.value) } : s))}
+                    className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                    placeholder="10"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-slate-600">Battery low (%)</label>
+                  <input
+                    value={String(settings?.battery_low ?? "")}
+                    onChange={(e) => setSettings((s) => (s ? { ...s, battery_low: e.target.value === "" ? null : Number(e.target.value) } : s))}
+                    className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                    placeholder="20"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-semibold text-slate-600">pH low</label>
+                  <input
+                    value={String(settings?.ph_low ?? "")}
+                    onChange={(e) => setSettings((s) => (s ? { ...s, ph_low: e.target.value === "" ? null : Number(e.target.value) } : s))}
+                    className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                    placeholder="6.5"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-slate-600">pH high</label>
+                  <input
+                    value={String(settings?.ph_high ?? "")}
+                    onChange={(e) => setSettings((s) => (s ? { ...s, ph_high: e.target.value === "" ? null : Number(e.target.value) } : s))}
+                    className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                    placeholder="8.5"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+              <div className="grid grid-cols-2 gap-3 md:col-span-2">
+                <div>
+                  <label className="text-sm font-semibold text-slate-600">Temp low (°C) (optional)</label>
+                  <input
+                    value={String(settings?.temperature_low ?? "")}
+                    onChange={(e) => setSettings((s) => (s ? { ...s, temperature_low: e.target.value === "" ? null : Number(e.target.value) } : s))}
+                    className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                    placeholder=""
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-slate-600">Temp high (°C) (optional)</label>
+                  <input
+                    value={String(settings?.temperature_high ?? "")}
+                    onChange={(e) => setSettings((s) => (s ? { ...s, temperature_high: e.target.value === "" ? null : Number(e.target.value) } : s))}
+                    className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                    placeholder=""
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={Boolean(settings?.enabled)}
+                  onChange={(e) => setSettings((s) => (s ? { ...s, enabled: e.target.checked } : s))}
+                  className="h-5 w-5"
+                />
+                <div className="text-sm font-semibold text-slate-700">Enable alerts</div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={async () => {
+                  if (!settings) return;
+                  setSettingsStatus("saving");
+                  try {
+                    const saved = await saveAlertSettings(selectedDeviceId, settings);
+                    setSettings(saved);
+                    setSettingsStatus("saved");
+                    setTimeout(() => setSettingsStatus("idle"), 1200);
+                  } catch {
+                    setSettingsStatus("error");
+                  }
+                }}
+                className="rounded-xl bg-brand-700 px-5 py-3 text-white font-extrabold hover:bg-brand-800"
+              >
+                Save Settings
+              </button>
+
+              {settingsStatus === "loading" && <div className="text-sm text-slate-500">Loading settings…</div>}
+              {settingsStatus === "saving" && <div className="text-sm text-slate-500">Saving…</div>}
+              {settingsStatus === "saved" && <div className="text-sm text-green-700 font-semibold">Saved ✓</div>}
+              {settingsStatus === "error" && <div className="text-sm text-red-700 font-semibold">Error (check backend / DB)</div>}
+            </div>
+          </div>
+        )}
+      </Card>
+
+      <Card className="p-6">
         <div className="text-lg font-extrabold text-brand-800">Existing Devices</div>
 
         <div className="mt-4 overflow-x-auto">
@@ -187,6 +377,7 @@ export default function AdminPage() {
           Removal only affects LocalStorage (demo). Hook this to backend later.
         </div>
       </Card>
+
     </div>
   );
 }

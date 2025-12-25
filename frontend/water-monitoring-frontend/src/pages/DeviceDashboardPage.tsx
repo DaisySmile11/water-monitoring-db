@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useDevices } from "../context/DevicesContext";
 import DeviceTitle from "../components/ui/DeviceTitle";
@@ -8,6 +8,7 @@ import DeviceCharts from "../components/charts/DeviceCharts";
 import { useDeviceData } from "../hooks/useDeviceData";
 import { computeStatus, statusColor, statusLabel } from "../utils/status";
 import DeviceReadingsTable from "../components/device/DeviceReadingsTable";
+import { fetchAlerts, AlertRow } from "../services/backend";
 
 export default function DeviceDashboardPage() {
   const { deviceId } = useParams();
@@ -15,6 +16,15 @@ export default function DeviceDashboardPage() {
   const device = useMemo(() => devices.find((d) => d.id === deviceId) || null, [devices, deviceId]);
 
   const { latest, series, loading, lastUpdated } = useDeviceData(device);
+
+  // Recent alerts (from backend)
+  const [alerts, setAlerts] = useState<AlertRow[]>([]);
+  useEffect(() => {
+    if (!device) return;
+    fetchAlerts(device.id, 20)
+      .then(setAlerts)
+      .catch(() => setAlerts([]));
+  }, [device?.id, latest?.createdAt]);
 
   if (!device) {
     return (
@@ -71,6 +81,46 @@ export default function DeviceDashboardPage() {
 
       {/* NEW: Table of device readings */}
       <DeviceReadingsTable data={series.length ? series : [latestSafe]} />
+
+      <Card className="p-6">
+        <div className="flex items-center justify-between gap-3">
+          <div className="font-extrabold text-brand-800">Recent Alerts</div>
+          <div className="text-xs text-slate-500">Stored in backend</div>
+        </div>
+
+        {alerts.length === 0 ? (
+          <div className="mt-3 text-sm text-slate-500">No alerts yet (or backend DB not configured).</div>
+        ) : (
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-slate-600 border-b">
+                  <th className="py-2 pr-4">Time</th>
+                  <th className="py-2 pr-4">Type</th>
+                  <th className="py-2 pr-4">Severity</th>
+                  <th className="py-2 pr-4">Message</th>
+                  <th className="py-2 pr-0">Email</th>
+                </tr>
+              </thead>
+              <tbody>
+                {alerts.slice(0, 10).map((a) => (
+                  <tr key={a.id} className="border-b last:border-0">
+                    <td className="py-3 pr-4 whitespace-nowrap">
+                      {new Date(a.created_at).toLocaleString()}
+                    </td>
+                    <td className="py-3 pr-4 font-semibold text-brand-800">{a.type}</td>
+                    <td className="py-3 pr-4">{a.severity}</td>
+                    <td className="py-3 pr-4">{a.message}</td>
+                    <td className="py-3 pr-0 whitespace-nowrap">
+                      {a.email_to ? (a.email_sent ? "sent" : "pending") : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
 
       <Card className="p-6">
         <div className="font-extrabold text-brand-800">Device Info</div>
